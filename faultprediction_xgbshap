@@ -228,10 +228,7 @@ for which_class in range(0,14):
     print('Converted Proba value:', converted_prob_val)
     print('Proba value:', proba, '\n')
 
-
-
-
-
-
+#Finally, the predicted fault types can be mapped to maintenance priorities based on existing literature + O&M domain-knowledge of the
+#wind farm engineers & technicians
 
 
