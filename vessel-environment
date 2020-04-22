@@ -1,0 +1,241 @@
+#Vessel transfer environment for our problem based on OpenAI Gym's Taxi problem
+#Acknowledgments:
+#OpenAI Gym: https://gym.openai.com/envs/Taxi-v2/
+#Safe Cab enviornment:- https://levelup.gitconnected.com/build-a-taxi-driving-agent-in-a-post-apocalyptic-world-using-reinforcement-learning-machine-175b1edd8f69
+
+MAP = [
+    "+---------+",
+    "|R: :A: :G|",
+    "| : : : : |",
+    "| :A:A: M |",
+    "| : : : : |",
+    "|Y: :A:B: |",
+    "+---------+",
+]
+
+
+class SafeCab(discrete.DiscreteEnv):
+    """
+    Reinforcement Learning Environment Design for Offshore Vessel Transfer Planning
+    
+
+    Based on the 
+    Modified Taxi Problem
+    from "Hierarchical Reinforcement Learning with the MAXQ Value Function Decomposition"
+    by Tom Dietterich
+    
+    Special Acknowledgemnts to https://levelup.gitconnected.com/build-a-taxi-driving-agent-in-a-post-apocalyptic-world-using-reinforcement-learning-machine-175b1edd8f69
+    We assume that there are 5 offshore wind turbines in the complete wind farm, numbered from 9000 to 9004, both inclusive.
+    Considering these 5 turbines as designated locations denoted by different colors:
+    Red (R)
+    Blue (B)
+    Green (G)
+    Yellow (Y)
+    Magenta (M)
+
+    "A" denotes an anomaly, which can be attributed to an obstacle in the enviornment or wrong decisions made by the agent.
+
+    At the start of an episode, the vessel is assumed to start off at a random location to pickup
+    maintenance personnel in the offshore port/onshore station,
+    and turbines are randomly placed in the environment at hypothetical locations, at some distance from one another.
+
+    Total States: Assuming 20 possible initial vessel locations (any vessel can be at either location
+    for starting point), 5 possible destinations (turbines),
+    and 5 possible initial locations of the maintenance personnel, resulting in total of 
+    20 * 5 * 5 = 500 states
+    
+    Actions: 
+    There are 7 discrete deterministic actions:
+    - 0: Pick up maintenance personnel
+    - 1: Move vessel to turbine 9000
+    - 2: Move vessel to turbine 9001
+    - 3: Move vessel to turbine 9002
+    - 4: Move vessel to turbine 9003
+    - 5: Move vessel to turbine 9004
+    - 6: Move vessel & drop-off maintenance personnel back to original position
+    
+    
+;
+    Rewards in the enviornment:
+    We provide a hypothetical reward of +1 for each discrete action the agent makes.
+    For correct movement to turbine: + 100 reward
+    For illegal executions of "Pick up" and "Drop off" operations: -30 reward
+    For any interaction with anomaly/obstacles: -50 reward, resulting in end of the episode.
+ 
+    Rendering:
+    - blue: Maintenance personnel 
+    - magenta: Turbine destination
+    - yellow: Empty vessel
+    - green: Full vessel
+    - red: anomaly
+    - other letters (R, G, B and Y): locations for passengers and destinations
+
+    state space is represented by:
+        (taxi_row, taxi_col, passenger_location, destination)
+    """
+    metadata = {'render.modes': ['human', 'ansi']}
+
+    def __init__(self):
+        self.desc = np.asarray(MAP, dtype='c')
+
+        self.locs = locs = [(0,0), (0,4), (4,0), (4,3)]
+        self.anomaly_locs = [(0,2), (2,1), (2,2), (4,2)]
+
+        num_states = 500
+        num_rows = 5
+        num_columns = 5
+        max_row = num_rows - 1
+        max_col = num_columns - 1
+        initial_state_distrib = np.zeros(num_states)
+        num_actions = 7
+        P = {state: {action: []
+                     for action in range(num_actions)} for state in range(num_states)}
+        for row in range(num_rows):
+            for col in range(num_columns):
+                for pass_idx in range(len(locs) + 1):  # +1 for being inside vessel
+                    for dest_idx in range(len(locs)):
+                        state = self.encode(row, col, pass_idx, dest_idx)
+                        if pass_idx < 4 and pass_idx != dest_idx:
+                            initial_state_distrib[state] += 1
+                        for action in range(num_actions):
+                            # defaults
+                            new_row, new_col, new_pass_idx = row, col, pass_idx
+                            reward = 1 # default reward when there is no pickup/dropoff
+                            done = False
+                            taxi_loc = (row, col)
+
+                            if action == 0:
+                              #High priority application (urgent maintenance required)
+                                if (pass_idx < 0 and taxi_loc == locs[pass_idx]):
+                                    reward = 100
+                                    print("High priority application: Maintenance personnel picked up.")
+
+                                    new_pass_idx = 0
+                                else: # crew member not at location
+                                    reward = -30
+                                    print("Maintenance personnel missing at vessel pick-up point.")
+
+                            elif action == 1:
+                                print("Vessel transfer to turbine 9000.")
+
+                                reward = 100
+
+                                new_row = min(row + 1, max_row)
+
+                            if action == 2:
+                                print("Vessel transfer to turbine 9001.")
+
+                                reward = 100
+
+                                new_row = max(row - 1, 0)
+
+                            elif action == 3:
+                                print("Vessel transfer to turbine 9002.")
+
+                                reward = 100
+
+                                new_col = min(col + 1, max_col)
+
+                            elif action == 4:  
+                                print("Vessel transfer to turbine 9003.")
+
+                                reward = 100
+
+                                new_col = max(col - 1, 0)
+                            elif action ==5:
+                                print("Vessel transfer to turbine 9004.")
+
+                                reward = 100
+
+                                new_row = min(row + 1, max_row)
+
+                             
+                            elif action == 6:  # dropoff
+                                if (taxi_loc == locs[dest_idx]) and pass_idx == 0:
+                                    new_pass_idx = dest_idx
+                                    done = True
+                                    print("Maintenance personnel dropped off to pick-up point.")
+
+                                    reward = 100
+                                elif (taxi_loc in locs) and pass_idx == 0:
+                                    new_pass_idx = locs.index(taxi_loc)
+                                else: # dropoff at wrong turbine location
+                                    print("Vessel transfer to wrong turbine location.")
+
+                                    reward = -30
+                                    
+                            new_loc = (new_row, new_col)
+                            if new_loc in self.anomaly_locs:
+                              reward = -50
+                              done = True
+                            new_state = self.encode(
+                                new_row, new_col, new_pass_idx, dest_idx)
+                            P[state][action].append(
+                                (1.0, new_state, reward, done))
+        initial_state_distrib /= initial_state_distrib.sum()
+        discrete.DiscreteEnv.__init__(
+            self, num_states, num_actions, P, initial_state_distrib)
+
+    def encode(self, taxi_row, taxi_col, pass_loc, dest_idx):
+        # (5) 5, 5, 4
+        i = taxi_row
+        i *= 5
+        i += taxi_col
+        i *= 5
+        i += pass_loc
+        i *= 4
+        i += dest_idx
+        return i
+
+    def decode(self, i):
+        out = []
+        out.append(i % 4)
+        i = i // 4
+        out.append(i % 5)
+        i = i // 5
+        out.append(i % 5)
+        i = i // 5
+        out.append(i)
+        assert 0 <= i < 5
+        return reversed(out)
+
+    def render(self, mode='human'):
+        outfile = StringIO() if mode == 'ansi' else sys.stdout
+
+        out = self.desc.copy().tolist()
+        out = [[c.decode('utf-8') for c in line] for line in out]
+        taxi_row, taxi_col, pass_idx, dest_idx = self.decode(self.s)
+        
+        def ul(x): return "_" if x == " " else x
+        
+        if pass_idx < 4:
+            out[1 + taxi_row][2 * taxi_col + 1] = utils.colorize(
+                out[1 + taxi_row][2 * taxi_col + 1], 'yellow', highlight=True)
+            pi, pj = self.locs[pass_idx]
+            out[1 + pi][2 * pj + 1] = utils.colorize(out[1 + pi][2 * pj + 1], 'blue', bold=True)
+        else:  # passenger in taxi
+            out[1 + taxi_row][2 * taxi_col + 1] = utils.colorize(
+                ul(out[1 + taxi_row][2 * taxi_col + 1]), 'green', highlight=True)
+
+        di, dj = self.locs[dest_idx]
+        out[1 + di][2 * dj + 1] = utils.colorize(out[1 + di][2 * dj + 1], 'magenta')
+        
+        for (zx, zy) in self.anomaly_locs:
+          out[1 + zx][2 * zy + 1] = utils.colorize(
+            out[1 + zx][2 * zy + 1], 'red', bold=True)
+        
+        outfile.write("\n".join(["".join(row) for row in out]) + "\n")
+        if self.lastaction is not None:
+            outfile.write("  ({})\n".format(["Pick up maintenance personnel","Move vessel to turbine 9000", "Move vessel to turbine 9001", "Move vessel to turbine 9002", "Move vessel to turbine 9003", "Move vessel to turbine 9004", "Move vessel & drop-off maintenance personnel back to original position"][self.lastaction]))
+        else: outfile.write("\n")
+
+        # No need to return anything for human
+        if mode != 'human':
+            with closing(outfile):
+                return outfile.getvalue()
+              
+# register(
+#    id='VesselTransfer-v0',
+#    entry_point=f"{__name__}:VesselTransfer",
+#    # timestep_limit=100,
+# )
