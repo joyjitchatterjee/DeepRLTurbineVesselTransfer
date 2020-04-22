@@ -1,0 +1,112 @@
+#Install the imbalanced learn library
+#!pip install imbalanced-learn
+
+#Perform Synthetic Minority Oversampling of minority classes and generate simulated data for the wind farm
+from imblearn.over_sampling import SMOTE
+import pandas as pd
+from collections import Counter
+import numpy as np
+df= pd.read_pickle('df_ldt_per_engie_final.pkl') #Read original dataset (without oversampling)
+#Map categorical values to integers (Strings mapped to classes in integral form for SMOTE)
+df["FunctionalGroup"] = df["FunctionalGroup"].map({
+    "NoFault": 0,
+    "Partial Performance-Degraded": 1,
+    "Pitch System Interface Alarms": 2,
+    "Gearbox": 3,
+    "Pitch System EFC Monitoring": 4,
+    "PCS": 5,
+    "MVTR": 6,
+    "Yaw Brake":7,
+    "Hydraulic System": 8,
+    "Yaw" : 9,
+    "Wind Condition Alarms": 10,
+    "Pitch" : 11,
+    "IPR" : 12,
+    "Test" : 13
+}).astype(int)
+
+#We need to add some random noise (+-5%) before using SMOTE as some classes have too few samples to be balanced.
+import random
+N = 100
+is_less = df['FunctionalGroup'] > 1
+df_try = df[is_less]
+df = df.append( [df_try + np.append(np.repeat(random.uniform(0, 0.05), len(df.columns) - 1), [0]) for _ in range(N)], ignore_index=True)
+
+X = df.iloc[:,:-1]
+y = df.iloc[:,-1]
+print(sorted(Counter(y).items()))
+X_resampled, y_resampled = SMOTE().fit_resample(X, y)
+print(sorted(Counter(y_resampled).items()))
+dataset = pd.concat([X_resampled, y_resampled], axis=1).reset_index()
+del dataset['index']
+dataset['TurbineNumber'] = np.random.randint(9000,9005, dataset.shape[0])
+
+dataset.to_csv('LDT_SimulatedWindFarm.csv')
+dataset.to_pickle('LDT_SimulatedWindFarm.pkl')
+
+#Fault Priorities mapped to fault types based on existing literature + domain knowledge of engineers/technicians
+#Priority scale of 0 (normal operation) to 4 (urgent maintenance/highest priority) for vessel transfer
+import math
+
+dataset= pd.read_csv('LDT_SimulatedWindFarm.csv')
+dataset.loc[dataset['FunctionalGroup'] == 0, 'Priority'] = 0
+
+dataset.loc[dataset['FunctionalGroup'] == 3, 'Priority'] = 4
+dataset.loc[dataset['FunctionalGroup'] == 9, 'Priority'] = 4
+dataset.loc[dataset['FunctionalGroup'] == 1, 'Priority'] = 1
+dataset.loc[dataset['FunctionalGroup'] == 2, 'Priority'] = 4
+dataset.loc[dataset['FunctionalGroup'] == 4, 'Priority'] = 4
+dataset.loc[dataset['FunctionalGroup'] == 5, 'Priority'] = 3
+dataset.loc[dataset['FunctionalGroup'] == 6, 'Priority'] = 2
+dataset.loc[dataset['FunctionalGroup'] == 7, 'Priority'] = 3
+dataset.loc[dataset['FunctionalGroup'] == 8, 'Priority'] = 2
+dataset.loc[dataset['FunctionalGroup'] == 10, 'Priority'] = 2
+dataset.loc[dataset['FunctionalGroup'] == 11, 'Priority'] = 4
+dataset.loc[dataset['FunctionalGroup'] == 12, 'Priority'] = 2
+dataset.loc[dataset['FunctionalGroup'] == 13, 'Priority'] = 3
+
+
+dataset.to_csv('LDT_SimulatedWindFarm_WithPriority.csv')
+dataset.to_pickle('LDT_SimulatedWindFarm_WithPriority.pkl')
+
+#plotting the visualisation
+import matplotlib.pyplot as plt
+dataset = pd.read_csv('LDT_SimulatedWindFarm_WithPriority.csv')
+dataset["FunctionalGroup"] = dataset["FunctionalGroup"].map({
+    0:"NoFault" ,
+    1: "Partial Performance-Degraded" ,
+    2: "Pitch System Interface Alarms",
+    3:"Gearbox",
+    4:"Pitch System EFC Monitoring",
+    5: "PCS",
+    6: "MVTR",
+    7:"Yaw Brake",
+    8: "Hydraulic System",
+    9:"Yaw",
+    10: "Wind Condition Alarms",
+    11:"Pitch",
+    12:"IPR",
+    13:"Test"
+})
+import numpy as np
+dataset.plot(x='FunctionalGroup', y='Priority', style='o')
+plt.title('Maintenance priorities for the simulated offshore wind farm')
+plt.show()
+
+dataset.plot(x="FunctionalGroup", y=["Priority"], kind="bar")
+
+plt.plot(dataset.Priority)
+plt.plot(dataset.FunctionalGroup,'r')
+plt.show()
+#Some interesting visualisations
+import matplotlib.pyplot as plt
+dataset.Priority.value_counts(sort=False).plot.pie()
+plt.show()
+
+from pandas.plotting import scatter_matrix
+scatter_matrix(dataset, alpha=0.2, figsize=(6, 6), diagonal='kde')
+
+
+
+
+
