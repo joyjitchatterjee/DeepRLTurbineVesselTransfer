@@ -1,0 +1,237 @@
+#Install key libraries required for fault prediction in SCADA data using XGBoost
+#!pip install matplotlib==3.1.0
+#%tensorflow_version 1.14
+#!pip install shap
+#Acknowledgements:-
+# https://evgenypogorelov.com/multiclass-xgb-shap.html for the XGBoost Multi-Class Classification theory using SHAP
+#SHAP Library using game theory approach: https://github.com/slundberg/shap
+
+import numpy as np
+import seaborn as sns
+from pylab import rcParams
+import matplotlib.pyplot as plt
+import math
+from matplotlib import rc
+import sys
+from contextlib import closing
+from io import StringIO
+import time
+from IPython.display import clear_output
+from scipy.signal import savgol_filter
+import pandas as pd
+%matplotlib inline
+
+sns.set(style='whitegrid', palette='muted', font_scale=1.3)
+
+rcParams['figure.figsize'] = 14, 8
+
+RANDOM_SEED = 123
+
+np.random.seed(RANDOM_SEED)
+
+#Read the dataset (With SCADA features)
+df = pd.read_csv('/content/drive/My Drive/LDT_SimulatedWindFarm_WithPriority.csv')
+df.head()
+
+import matplotlib.pylab as plt
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+#Remove features with high correlation (>95%) and retain only one of such features
+import matplotlib.pyplot as plt
+
+plt.matshow(df.corr())
+plt.savefig('CorrelationPlot_Full.eps',format='eps')
+
+#Visualise few examples in the correlation through a Pandas plot
+corr = df.corr()
+# corr.style.background_gradient(cmap='coolwarm')
+
+corr.style.background_gradient(cmap='coolwarm').set_precision(2)
+# 'RdBu_r' & 'BrBG' are other good diverging colormaps
+
+#Visualise through a matrix of some feature
+import seaborn as sns
+fig, ax = plt.subplots()
+sns.heatmap(df.iloc[:,:10].corr(method='pearson'), annot=True, fmt='.4f', 
+            cmap=plt.get_cmap('coolwarm'), cbar=False, ax=ax)
+ax.set_yticklabels(ax.get_yticklabels(), rotation="horizontal")
+plt.savefig('CorrelationPlot_FewFeatures.eps')
+
+# Create correlation matrix
+corr_matrix = df.corr().abs()
+
+# Select upper triangle of correlation matrix
+upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+
+# Find index of feature columns with correlation greater than 0.95
+to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+
+print(corr_matrix)
+print(to_drop)
+
+# Drop features 
+df.drop(df[to_drop], axis=1,inplace=True)
+df.to_csv('/content/drive/My Drive/Final_LDTWindFarm_CorrelationRemovedFeatures.csv')
+
+#Read the newly created dataframe (with redundant features removed)
+df = pd.read_csv('inal_LDTWindFarm_CorrelationRemovedFeatures.csv')
+print(df.shape)
+df = df.iloc[:,1:] #Remove the first column which has indices (row numbers) as it is irrelevant
+print(df.shape)
+
+#Create labels for classes and features
+X = df.iloc[:,:-3] #Taking into account till Priority Column which was mapped
+y = df.iloc[:,-3] #This contains classes of faults in different Functional Groups
+X.head()
+y.head()
+print(X.shape)
+
+#Training and testing of XGBoost classifier model
+import xgboost as xgb
+from sklearn.model_selection import train_test_split, StratifiedKFold, GridSearchCV, cross_validate
+import matplotlib.pylab as pl
+import pandas as pd
+import numpy as np
+import sklearn.metrics as metrics
+import matplotlib.pyplot as plt
+
+
+# create a train/test split
+import joblib
+
+X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=.30)
+
+xgbc = xgb.XGBClassifier(n_estimators = 100,learning_rate = 0.1,early_stopping_rounds = 10,objective='multi:softprob',\
+                    num_class=14,\
+                    random_state=123)
+
+#Save and dump the model after training
+mcl.save_model('Final_LDTWindFarmFaultClassifier.model')
+mcl = xgbc.fit(X_train, y_train, eval_metric='mlogloss')
+joblib.dump(mcl, 'Final_LDTWindFarmFaultClassifier2.dat') 
+
+#Use this script to load the model later (when needed)
+# bst.load_model("Final_LDTWindFarmFaultClassifier.model") # load data
+#mcl = joblib.load("/content/drive/My Drive/Final_LDTWindFarmFaultClassifier2.dat")
+
+#Predict faults transparency using SHAP
+
+pred = mcl.predict(X_test)
+proba = mcl.predict_proba(X_test)
+
+fault_df = pd.DataFrame()
+fault_df['FunctionalGroup'] = pred
+print(fault_df)
+
+#Map functional group to fault types as integral categories
+y_map = pd.DataFrame(data=y, columns=['FunctionalGroup'])
+y_map['label'] = y_map['FunctionalGroup'].map({0:"NoFault" ,
+    1: "Partial Performance-Degraded" ,
+    2: "Pitch System Interface Alarms",
+    3:"Gearbox",
+    4:"Pitch System EFC Monitoring",
+    5: "PCS",
+    6: "MVTR",
+    7:"Yaw Brake",
+    8: "Hydraulic System",
+    9:"Yaw",
+    10: "Wind Condition Alarms",
+    11:"Pitch",
+    12:"IPR",
+    13:"Test"})
+    
+    
+import shap
+
+#Attempt to use SHAP on multi-class
+X_rand = X.sample(1, random_state=123)
+idx = X_rand.index.values[0]
+
+#This line will not work for a multi-class model, so we comment out
+#explainer = shap.TreeExplainer(mcl, model_output='probability', feature_dependence='independent', data=X)
+
+explainer = shap.TreeExplainer(mcl)
+shap_values = explainer.shap_values(X.iloc[idx])
+shap.initjs()
+# for which_class in range(0,14):
+
+display(shap.force_plot(explainer.expected_value[3], shap_values[3], X_rand,matplotlib=True,show=False))
+plt.savefig('Gearbox_SHAP_LDT.eps',bbox_inches='tight')
+    
+    
+#Display all features and SHAP values
+df1=pd.DataFrame(data=shap_values[0], columns=X.columns, index=[0])
+df2=pd.DataFrame(data=shap_values[1], columns=X.columns, index=[1])
+df3=pd.DataFrame(data=shap_values[2], columns=X.columns, index=[2])
+df4=pd.DataFrame(data=shap_values[3], columns=X.columns, index=[3])
+df5=pd.DataFrame(data=shap_values[4], columns=X.columns, index=[4])
+df6=pd.DataFrame(data=shap_values[5], columns=X.columns, index=[5])
+df7=pd.DataFrame(data=shap_values[6], columns=X.columns, index=[6])
+df8=pd.DataFrame(data=shap_values[7], columns=X.columns, index=[7])
+df9=pd.DataFrame(data=shap_values[8], columns=X.columns, index=[8])
+df10=pd.DataFrame(data=shap_values[9], columns=X.columns, index=[9])
+df11=pd.DataFrame(data=shap_values[10], columns=X.columns, index=[10])
+df12=pd.DataFrame(data=shap_values[11], columns=X.columns, index=[11])
+df13=pd.DataFrame(data=shap_values[12], columns=X.columns, index=[12])
+df14=pd.DataFrame(data=shap_values[13], columns=X.columns, index=[13])
+
+df=pd.concat([df1,df2,df3,df4,df5,df6,df7,df8,df9,df10,df11,df12,df13,df14])
+display(df.transpose())
+
+# Print model report
+print("Classification report (Test): \n")
+print(metrics.classification_report(y_test, pred))
+# print("Confusion matrix (Test): \n")
+# print(metrics.confusion_matrix(y_test, pred)/len(y_test))
+
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+
+# Creates a confusion matrix
+cm = confusion_matrix(y_test, pred) 
+
+# Transform to df for easier plotting
+cm_df = pd.DataFrame(cm,
+                     index = ['NoFault','Partial Performance-Degraded','Pitch System Interface Alarms','Gearbox','Pitch System EFC Monitoring','PCS','MVTR','Yaw Brake','Hydraulic System','Yaw','Wind Conditon Alarms','Pitch','IPR','Test'], 
+                     columns = ['NoFault','Partial Performance-Degraded','Pitch System Interface Alarms','Gearbox','Pitch System EFC Monitoring','PCS','MVTR','Yaw Brake','Hydraulic System','Yaw','Wind Conditon Alarms','Pitch','IPR','Test'])
+
+sns.heatmap(cm_df)
+plt.title('Predicted faults in the simulated offshore wind farm\nAccuracy:{0:.3f}'.format(accuracy_score(y_test, pred)))
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+plt.savefig('ConfusionMatrix_WindFarm.jpg')
+plt.show()
+
+
+shap_values = explainer.shap_values(X)
+shap.summary_plot(shap_values, X)
+plt.savefig('SHAP_SummaryValues_LDTWindFarm.eps', format='eps', dpi=1000, bbox_inches='tight')
+
+# plt.savefig('SHAP_SummaryValues_LDTWindFarm.eps',bbox_inches = "tight")
+
+#define a function to convert logodds to probability for multi-class 
+def logodds_to_proba(logodds):
+    return np.exp(logodds)/np.exp(logodds).sum()
+
+#generate predictions for our row of data and do conversion
+logodds = mcl.predict(X_rand, output_margin=True)
+probas = mcl.predict_proba(X_rand)
+for which_class in range(0,14):
+    base_val = explainer.expected_value[which_class]
+    pred_val = explainer.expected_value[which_class] + shap_values[which_class][0].sum() #delta between base value and pred value
+    converted_prob_val = logodds_to_proba(logodds)[0][which_class]
+    proba = probas[0][which_class]
+
+    print('Class: ',which_class)
+    print('Base value: ', base_val)
+    print('Prediction value: ', pred_val)
+    print('Converted Proba value:', converted_prob_val)
+    print('Proba value:', proba, '\n')
+
+
+
+
+
+
+
+
