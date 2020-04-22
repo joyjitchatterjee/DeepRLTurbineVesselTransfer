@@ -1,7 +1,7 @@
 # DeepRLTurbineVesselTransfer
 Supplementary material for our paper "Deep Reinforcement Learning for Maintenance Planning of Offshore Vessel Transfer" in submission to RENEW 2020, Lisbon, Portugal.
 
-Initially, SMOTE can be performed using the appropriate script. And as the second step, utilise the fault prediction using XGBoost with SHAP game theory approach to predict fault types. Finally, utilise the simulated RL enviornment in the grip map based on the Taxi OpenAI Gym and train the RL algorithms of your choice.
+Initially, SMOTE can be performed using the appropriate script. And as the second step, utilise the fault prediction using XGBoost with SHAP game theory approach to predict fault types. Finally, utilise the simulated RL enviornment in the grid map based on the Taxi OpenAI Gym and train the RL algorithms of your choice.
 
 Refer to https://youtu.be/ss02F5vwojM for a short video demonstrating text-based simulation of offshore vessel transfer planning and decision making.
 
