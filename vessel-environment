@@ -2,7 +2,7 @@
 #Acknowledgments:
 #OpenAI Gym: https://gym.openai.com/envs/Taxi-v2/
 #Safe Cab enviornment:- https://levelup.gitconnected.com/build-a-taxi-driving-agent-in-a-post-apocalyptic-world-using-reinforcement-learning-machine-175b1edd8f69
-
+#Note: This study uses a hypothetical envioronment for learning process during reinforcement learning's policy updates, so the rewards and reward function may perform differently under varying circumstances of fault types predicted by XGBoost and maintenance actions mapped to priorites in the scale of 0-4.
 MAP = [
     "+---------+",
     "|R: :A: :G|",
