@@ -7,4 +7,4 @@ Refer to https://youtu.be/ss02F5vwojM for a short video demonstrating text-based
 
 Special acknowledgment: ORE Catapult for providing us insights from the LDT's data.
 
-Disclaimer: This study uses a hypothetical environment for learning process during reinforcement learning's policy updates, so the rewards and reward function may perform differently under varying circumstances of fault types predicted by XGBoost and maintenance actions mapped to priorites in the scale of 0-4.
+Disclaimer: This study uses a hypothetical environment for learning process during reinforcement learning's policy updates, so the rewards and the learning agent may perform differently under varying circumstances of fault types predicted by XGBoost and maintenance actions mapped to priorites in the scale of 0-4.
