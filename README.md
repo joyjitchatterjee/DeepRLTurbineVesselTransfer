@@ -5,7 +5,11 @@ Initially, SMOTE can be performed using the appropriate script. And as the secon
 
 Refer to https://youtu.be/ss02F5vwojM for a short video demonstrating text-based simulation of offshore vessel transfer planning and decision making.
 
-# Special acknowledgment: ORE Catapult for providing us insights from the LDT's data.
+# Special acknowledgment: 
+ORE Catapult for providing us insights from the LDT's data via Platform for Operational Data https://pod.ore.catapult.org.uk.
 
 # Disclaimer: 
 This study uses a hypothetical environment for learning process during reinforcement learning's policy updates, so the rewards and the learning agent may perform differently under varying circumstances of fault types predicted by XGBoost and maintenance actions mapped to priorites in the scale of 0-4.
+
+# License:
+This repo is based on the MIT License, which allows free use of the provided resources, subject to the origina sources being credit/acknowledged appropriately. The software/resources under MIT license is provided as is, without any liability or warranty at the end of the authors. 
